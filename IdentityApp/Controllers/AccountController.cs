@@ -21,6 +21,7 @@ public class AccountController : Controller
         return View();
     }
 
+    [HttpGet]
     public IActionResult Register(string returnUrl = null!)
     {
         var registerVM = new RegisterViewModel();
@@ -52,6 +53,43 @@ public class AccountController : Controller
         var errors = ModelState.Select(x => x.Value.Errors)
             .Where(y => y.Count > 0)
             .ToList();
+
         return View(model);
+    }
+
+    [HttpGet]
+    public IActionResult SignIn(string? returnUrl)
+    {
+        SignInViewModel model = new SignInViewModel();
+        returnUrl ??= Url.Content("~/");
+        model.ReturnUrl = returnUrl;
+        return View(model);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> SignIn(SignInViewModel model, string returnUrl)
+    {
+        if (ModelState.IsValid)
+        {
+            var result = await _signInManager.PasswordSignInAsync(model.UserName, model.Password, model.RememberMe, false);
+            if (result.Succeeded)
+            {
+                return RedirectToAction("Index", "Home");
+            }
+            else
+            {
+                ModelState.AddModelError("error", "Invalid Sign In attempt.");
+                return View(model);
+            }
+        }
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SignOut()
+    {
+        await _signInManager.SignOutAsync();
+        return RedirectToAction("Index", "Home");
     }
 }
