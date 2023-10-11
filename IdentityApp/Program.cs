@@ -1,7 +1,10 @@
 using IdentityApp.Data;
 using IdentityApp.Models;
+using IdentityApp.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using NETCore.MailKit.Extensions;
+using NETCore.MailKit.Infrastructure.Internal;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +18,26 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddIdentity<AppUser, IdentityRole>()
     .AddEntityFrameworkStores<AppDbContext>()
     .AddDefaultTokenProviders();
+
+builder.Services.Configure<IdentityOptions>(opt =>
+{
+    opt.Password.RequiredLength = 5;
+    opt.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromSeconds(5);
+    opt.Lockout.MaxFailedAccessAttempts = 4;
+});
+
+builder.Services.AddMailKit(config =>
+{
+    var configuration = builder.Configuration;
+    var mailKitOptions = configuration.GetSection("MailSettings").Get<MailKitOptions>();
+    config.UseMailKit(mailKitOptions);
+});
+
+builder.Services.AddOptions();
+var options = builder.Configuration.GetSection("MailSettings");
+builder.Services.Configure<MailSettings>(options);
+
+builder.Services.AddTransient<SendMailkitService>();
 
 var app = builder.Build();
 

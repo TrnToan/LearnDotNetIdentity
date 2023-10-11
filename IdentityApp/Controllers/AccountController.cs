@@ -1,4 +1,5 @@
 ﻿using IdentityApp.Models;
+using IdentityApp.Services;
 using IdentityApp.ViewModels;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -9,11 +10,13 @@ public class AccountController : Controller
 {
     private readonly UserManager<AppUser> _userManager;
     private readonly SignInManager<AppUser> _signInManager;
+    private readonly SendMailkitService _service;
 
-    public AccountController(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager)
+    public AccountController(UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, SendMailkitService service)
     {
         _userManager = userManager;
         _signInManager = signInManager;
+        _service = service;
     }
 
     public IActionResult Index()
@@ -71,10 +74,14 @@ public class AccountController : Controller
     {
         if (ModelState.IsValid)
         {
-            var result = await _signInManager.PasswordSignInAsync(model.UserName, model.Password, model.RememberMe, false);
+            var result = await _signInManager.PasswordSignInAsync(model.UserName, model.Password, model.RememberMe, true);
             if (result.Succeeded)
             {
                 return RedirectToAction("Index", "Home");
+            }
+            if (result.IsLockedOut)
+            {
+                return View("Lockout");
             }
             else
             {
@@ -91,5 +98,42 @@ public class AccountController : Controller
     {
         await _signInManager.SignOutAsync();
         return RedirectToAction("Index", "Home");
+    }
+
+    [HttpGet]
+    public IActionResult ForgotPassword()
+    {
+        return View();
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel viewModel)
+    {
+        if(ModelState.IsValid)
+        {
+            var user = await _userManager.FindByEmailAsync(viewModel.Email);
+            if(user == null)
+            {
+                return View(viewModel);
+            }
+            var code = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var callbackUrl = Url.Action("ResetPassword", "Account", new {userId = user.Id, code }, HttpContext.Request.Scheme);
+
+            var mailContent = new MailContent()
+            {
+                To = viewModel.Email,
+                Subject = "Password Reset",
+                Body = "Please reset email by going to this " + "<a href=\"" + callbackUrl + "\">link</a>"
+            };
+            await _service.SendMail(mailContent);
+            return RedirectToAction("ForgotPasswordConfirmation");
+        }
+        return View(viewModel);
+    }
+
+    [HttpGet]
+    public IActionResult ForgotPasswordConfirmation()
+    {
+        return View();
     }
 }
