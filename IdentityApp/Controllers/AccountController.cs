@@ -116,8 +116,8 @@ public class AccountController : Controller
             {
                 return View(viewModel);
             }
-            var code = await _userManager.GeneratePasswordResetTokenAsync(user);
-            var callbackUrl = Url.Action("ResetPassword", "Account", new {userId = user.Id, code }, HttpContext.Request.Scheme);
+            var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var callbackUrl = Url.Action("ResetPassword", "Account", new {userId = user.Id, token = resetToken }, HttpContext.Request.Scheme);
 
             var mailContent = new MailContent()
             {
@@ -133,6 +133,42 @@ public class AccountController : Controller
 
     [HttpGet]
     public IActionResult ForgotPasswordConfirmation()
+    {
+        return View();
+    }
+
+    [HttpGet]
+    public IActionResult ResetPassword(string token)
+    {
+        return token == null ? View("Error") : View();
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetPassword(ResetPasswordViewModel resetPasswordViewModel)
+    {
+        if (ModelState.IsValid)
+        {
+            var user = await _userManager.FindByEmailAsync(resetPasswordViewModel.Email);
+            if (user == null)
+            {
+                ModelState.AddModelError("Email", "User not found");
+                return View();
+            }
+            var result = await _userManager.ResetPasswordAsync(user, resetPasswordViewModel.Token, resetPasswordViewModel.Password);
+            if (result.Succeeded)
+            {
+                return RedirectToAction("ResetPasswordConfirmation");
+            }
+        }
+        var errors = ModelState.Select(x => x.Value.Errors)
+            .Where(y => y.Count > 0)
+            .ToList();
+        return View(resetPasswordViewModel);
+    }
+
+    [HttpGet]
+    public IActionResult ResetPasswordConfirmation()
     {
         return View();
     }
